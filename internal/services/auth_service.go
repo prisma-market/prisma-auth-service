@@ -3,24 +3,32 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
+	"github.com/kihyun1998/prisma-market/prisma-auth-service/internal/config"
 	"github.com/kihyun1998/prisma-market/prisma-auth-service/internal/models"
 	"github.com/kihyun1998/prisma-market/prisma-auth-service/internal/repository/mongodb"
+	"github.com/kihyun1998/prisma-market/prisma-auth-service/internal/services/email"
 	"github.com/kihyun1998/prisma-market/prisma-auth-service/pkg/utils"
 )
 
 type AuthService struct {
-	repo      *mongodb.AuthRepository
-	jwtSecret string
-	jwtExpiry int
+	repo         *mongodb.AuthRepository
+	emailService *email.EmailService
+	jwtSecret    string
+	jwtExpiry    int
+	config       *config.Config // WebAppURL 등의 설정을 위해 필요
 }
 
 // NewAuthService AuthService 생성자
-func NewAuthService(repo *mongodb.AuthRepository, jwtSecret string, jwtExpiry int) *AuthService {
+func NewAuthService(repo *mongodb.AuthRepository, emailService *email.EmailService, config *config.Config) *AuthService {
 	return &AuthService{
-		repo:      repo,
-		jwtSecret: jwtSecret,
-		jwtExpiry: jwtExpiry,
+		repo:         repo,
+		emailService: emailService,
+		jwtSecret:    config.JWTSecret,
+		jwtExpiry:    config.JWTExpires,
+		config:       config,
 	}
 }
 
@@ -78,6 +86,79 @@ func (s *AuthService) LoginUser(ctx context.Context, req *models.LoginRequest) (
 		Token:     token,
 		ExpiresIn: s.jwtExpiry * 3600, // 시간을 초로 변환
 	}, nil
+}
+
+func (s *AuthService) InitiatePasswordReset(ctx context.Context, req *models.ForgotPasswordRequest) error {
+	// 사용자 조회
+	user, err := s.repo.FindUserByEmail(ctx, req.Email)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return nil // 보안을 위해 사용자가 없어도 성공으로 처리
+	}
+
+	// 재설정 토큰 생성
+	token := utils.GenerateRandomToken(32)
+	expiry := time.Now().Add(1 * time.Hour)
+
+	// 토큰 저장
+	if err := s.repo.UpdateResetToken(ctx, user.Email, token, expiry); err != nil {
+		return err
+	}
+
+	// 이메일 발송
+	resetURL := fmt.Sprintf("%s/reset-password", s.config.WebAppURL)
+	return s.emailService.SendPasswordResetEmail(user.Email, token, resetURL)
+}
+
+func (s *AuthService) ResetPassword(ctx context.Context, req *models.ResetPasswordRequest) error {
+	// 비밀번호 유효성 검사
+	if err := utils.ValidatePassword(req.NewPassword); err != nil {
+		return err
+	}
+
+	// 비밀번호 해시화
+	hashedPassword, err := utils.HashPassword(req.NewPassword)
+	if err != nil {
+		return err
+	}
+
+	// 비밀번호 업데이트
+	return s.repo.ResetPassword(ctx, req.Token, hashedPassword)
+}
+
+func (s *AuthService) SendVerificationEmail(ctx context.Context, email string) error {
+	// 사용자 조회
+	user, err := s.repo.FindUserByEmail(ctx, email)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+
+	// 이미 인증된 경우
+	if user.EmailVerified {
+		return errors.New("email already verified")
+	}
+
+	// 인증 토큰 생성
+	token := utils.GenerateRandomToken(32)
+	expiry := time.Now().Add(24 * time.Hour)
+
+	// 토큰 저장
+	if err := s.repo.UpdateEmailVerificationToken(ctx, user.ID, token, expiry); err != nil {
+		return err
+	}
+
+	// 이메일 발송
+	verifyURL := fmt.Sprintf("%s/verify-email", s.config.WebAppURL)
+	return s.emailService.SendVerificationEmail(user.Email, token, verifyURL)
+}
+
+func (s *AuthService) VerifyEmail(ctx context.Context, req *models.VerifyEmailRequest) error {
+	return s.repo.VerifyEmail(ctx, req.Token)
 }
 
 // 입력값 검증 함수

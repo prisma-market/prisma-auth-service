@@ -9,6 +9,16 @@ type Config struct {
 	MongoURI   string `mapstructure:"MONGO_URI"`
 	JWTSecret  string `mapstructure:"JWT_SECRET"`
 	JWTExpires int    `mapstructure:"JWT_EXPIRES"` // 시간 단위: 시간
+
+	// SMTP 설정
+	SMTPHost     string `mapstructure:"SMTP_HOST"`
+	SMTPPort     int    `mapstructure:"SMTP_PORT"`
+	SMTPUsername string `mapstructure:"SMTP_USERNAME"`
+	SMTPPassword string `mapstructure:"SMTP_PASSWORD"`
+	SMTPFrom     string `mapstructure:"SMTP_FROM"`
+
+	// 웹 앱 URL (이메일 링크용)
+	WebAppURL string `mapstructure:"WEB_APP_URL"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -18,6 +28,7 @@ func LoadConfig() (*Config, error) {
 	// 기본값 설정
 	viper.SetDefault("SERVER_PORT", "8001")
 	viper.SetDefault("JWT_EXPIRES", 24) // 24시간
+	viper.SetDefault("SMTP_PORT", 587)
 
 	if err := viper.ReadInConfig(); err != nil {
 		// .env 파일이 없어도 환경변수로 실행 가능하게
