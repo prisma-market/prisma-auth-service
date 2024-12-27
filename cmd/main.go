@@ -34,6 +34,9 @@ func main() {
 	r.HandleFunc("/auth/verify-email", authHandler.VerifyEmail).Methods("POST")
 	r.HandleFunc("/auth/send-verification", authHandler.SendVerificationEmail).Methods("POST")
 
+	// jwt
+	r.HandleFunc("/auth/verify", authHandler.VerifyToken).Methods("GET")
+
 	// 서버 시작
 	log.Printf("Server starting on port %s", cfg.ServerPort)
 	if err := http.ListenAndServe(":"+cfg.ServerPort, r); err != nil {

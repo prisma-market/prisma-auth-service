@@ -3,16 +3,19 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/kihyun1998/prisma-market/prisma-auth-service/internal/config"
 	"github.com/kihyun1998/prisma-market/prisma-auth-service/internal/models"
 	"github.com/kihyun1998/prisma-market/prisma-auth-service/internal/repository/mongodb"
 	"github.com/kihyun1998/prisma-market/prisma-auth-service/internal/services"
 	"github.com/kihyun1998/prisma-market/prisma-auth-service/internal/services/email"
+	"github.com/kihyun1998/prisma-market/prisma-auth-service/pkg/utils"
 )
 
 type AuthHandler struct {
 	authService *services.AuthService
+	jwtSecret   string
 }
 
 type ErrorResponse struct {
@@ -42,6 +45,7 @@ func NewAuthHandler(cfg *config.Config) *AuthHandler {
 
 	return &AuthHandler{
 		authService: authService,
+		jwtSecret:   cfg.JWTSecret,
 	}
 }
 
@@ -162,5 +166,28 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "Email has been verified successfully",
+	})
+}
+
+// VerifyToken JWT 토큰 검증 핸들러
+func (h *AuthHandler) VerifyToken(w http.ResponseWriter, r *http.Request) {
+	tokenString := r.Header.Get("Authorization")
+	if tokenString == "" {
+		h.sendError(w, "no token provided", http.StatusUnauthorized)
+		return
+	}
+
+	tokenString = strings.TrimPrefix(tokenString, "Bearer ")
+
+	claims, err := utils.ValidateJWT(tokenString, h.jwtSecret)
+	if err != nil {
+		h.sendError(w, "invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"id":    claims.UserID,
+		"email": claims.Email,
 	})
 }
