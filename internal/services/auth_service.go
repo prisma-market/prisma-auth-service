@@ -9,26 +9,23 @@ import (
 	"github.com/kihyun1998/prisma-market/prisma-auth-service/internal/config"
 	"github.com/kihyun1998/prisma-market/prisma-auth-service/internal/models"
 	"github.com/kihyun1998/prisma-market/prisma-auth-service/internal/repository/mongodb"
-	"github.com/kihyun1998/prisma-market/prisma-auth-service/internal/services/email"
 	"github.com/kihyun1998/prisma-market/prisma-auth-service/pkg/utils"
 )
 
 type AuthService struct {
-	repo         *mongodb.AuthRepository
-	emailService *email.EmailService
-	jwtSecret    string
-	jwtExpiry    int
-	config       *config.Config // WebAppURL 등의 설정을 위해 필요
+	repo      *mongodb.AuthRepository
+	jwtSecret string
+	jwtExpiry int
+	config    *config.Config // WebAppURL 등의 설정을 위해 필요
 }
 
 // NewAuthService AuthService 생성자
-func NewAuthService(repo *mongodb.AuthRepository, emailService *email.EmailService, config *config.Config) *AuthService {
+func NewAuthService(repo *mongodb.AuthRepository, config *config.Config) *AuthService {
 	return &AuthService{
-		repo:         repo,
-		emailService: emailService,
-		jwtSecret:    config.JWTSecret,
-		jwtExpiry:    config.JWTExpires,
-		config:       config,
+		repo:      repo,
+		jwtSecret: config.JWTSecret,
+		jwtExpiry: config.JWTExpires,
+		config:    config,
 	}
 }
 
